@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demand Planning Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #242736;
+    --border: #2e3347; --text: #e2e8f0; --muted: #8892a4;
+    --green: #22c55e; --yellow: #f59e0b; --red: #ef4444; --orange: #f97316;
+    --blue: #3b82f6; --purple: #a855f7; --cyan: #06b6d4;
+    --accent: #6366f1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 18px; font-weight: 700; color: var(--text); }
+  .header h1 span { color: var(--accent); }
+  .meta { font-size: 11px; color: var(--muted); text-align: right; }
+  .filter-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .filter-bar label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  select:focus { outline: none; border-color: var(--accent); }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  .reset-btn { margin-left: auto; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .reset-btn:hover { border-color: var(--accent); color: var(--text); }
+  .main { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+  .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .kpi-card .kpi-label { font-size: 11px; color: var(--muted); }
+  .kpi-card .kpi-value { font-size: 18px; font-weight: 700; }
+  .kpi-card.green { border-left: 3px solid var(--green); }
+  .kpi-card.yellow { border-left: 3px solid var(--yellow); }
+  .kpi-card.red { border-left: 3px solid var(--red); }
+  .kpi-card.blue { border-left: 3px solid var(--blue); }
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .chart-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+  .chart-wrap { position: relative; height: 200px; }
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .table-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .table-header h3 { font-size: 13px; font-weight: 600; }
+  .sku-count { font-size: 12px; color: var(--muted); background: var(--surface2); padding: 3px 10px; border-radius: 20px; }
+  .table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { background: var(--surface2); padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; position: sticky; top: 0; z-index: 1; white-space: nowrap; cursor: pointer; user-select: none; }
+  thead th:hover { color: var(--text); }
+  thead th.sorted-asc::after { content: " ▲"; color: var(--accent); }
+  thead th.sorted-desc::after { content: " ▼"; color: var(--accent); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 9px 12px; white-space: nowrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+  .badge.CRITICAL { background: #ef444420; color: var(--red); }
+  .badge.HIGH { background: #f9731620; color: var(--orange); }
+  .badge.MEDIUM { background: #f59e0b20; color: var(--yellow); }
+  .badge.LOW { background: #22c55e20; color: var(--green); }
+  .badge.action-PLACE { background: #ef444420; color: var(--red); }
+  .badge.action-PREPARE { background: #f9731620; color: var(--orange); }
+  .badge.action-REVIEW { background: #3b82f620; color: var(--blue); }
+  .badge.action-MONITOR { background: #22c55e20; color: var(--green); }
+  .badge.action-LIQUIDATE { background: #a855f720; color: var(--purple); }
+  .badge.active { background: #22c55e20; color: var(--green); }
+  .badge.phase-out { background: #8892a420; color: var(--muted); }
+  .badge.new { background: #3b82f620; color: var(--blue); }
+  .gap-neg { color: var(--red); }
+  .gap-pos { color: var(--green); }
+  .loading { display: flex; align-items: center; justify-content: center; height: 300px; flex-direction: column; gap: 12px; color: var(--muted); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .search-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; width: 220px; }
+  .search-input:focus { outline: none; border-color: var(--accent); }
+  .summary-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .summary-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; font-size: 12px; color: var(--muted); }
+  .summary-chip b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>📦 <span>Demand Planning</span> Command Center</h1>
+    <div style="font-size:12px;color:var(--muted);margin-top:3px;">Alo Yoga Women's Apparel · FY24 (Jan–Aug 2024)</div>
+  </div>
+  <div class="meta" id="meta-info">Loading…</div>
+</div>
+<div class="filter-bar">
+  <div class="filter-group"><label>Category</label><select id="f-category"><option value="">All Categories</option></select></div>
+  <div class="filter-group"><label>Action</label>
+    <select id="f-action">
+      <option value="">All Actions</option>
+      <option value="PLACE ORDER">Place Order</option>
+      <option value="PREPARE ORDER">Prepare Order</option>
+      <option value="REVIEW OVERSTOCK">Review Overstock</option>
+      <option value="MONITOR">Monitor</option>
+      <option value="LIQUIDATE">Liquidate</option>
+    </select>
+  </div>
+  <div class="filter-group"><label>Urgency</label>
+    <select id="f-urgency">
+      <option value="">All Urgency</option>
+      <option value="CRITICAL">Critical</option>
+      <option value="HIGH">High</option>
+      <option value="MEDIUM">Medium</option>
+      <option value="LOW">Low</option>
+    </select>
+  </div>
+  <div class="filter-group"><label>Lifecycle</label>
+    <select id="f-lifecycle">
+      <option value="">All</option>
+      <option value="active">Active</option>
+      <option value="phase-out">Phase-Out</option>
+      <option value="new">New</option>
+    </select>
+  </div>
+  <div class="filter-group"><label>Search SKU / Name</label><input class="search-input" id="f-search" placeholder="e.g. bra, black, W935…" /></div>
+  <button class="reset-btn" id="reset-btn">✕ Reset</button>
+</div>
+<div class="main" id="main-content">
+  <div class="loading"><div class="spinner"></div><span>Loading data…</span></div>
+</div>
+<script>
+const DATA_URL = "https://raw.githubusercontent.com/ankursharma29-gh/demand-dashboard/main/sku_detail.json";
+let ALL_SKUS = [], KPIS = {}, sortCol = "priority_score", sortDir = -1, charts = {};
+
+async function init() {
+  try {
+    const data = await fetch(DATA_URL).then(r => r.json());
+    ALL_SKUS = data.skus; KPIS = data.kpis;
+    buildFilters(); render();
+    document.getElementById("meta-info").innerHTML =
+      `<div>Period: ${KPIS.meta.data_period}</div><div>Updated: ${new Date(KPIS.meta.last_updated).toLocaleString()}</div>`;
+  } catch(e) {
+    document.getElementById("main-content").innerHTML =
+      `<div class="loading">⚠️ Could not load data.<br><small>${e.message}</small></div>`;
+  }
+}
+
+function buildFilters() {
+  const cats = [...new Set(ALL_SKUS.map(s => s.category).filter(Boolean))].sort();
+  const sel = document.getElementById("f-category");
+  cats.forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = c; sel.appendChild(o); });
+  ["f-category","f-action","f-urgency","f-lifecycle"].forEach(id => document.getElementById(id).addEventListener("change", render));
+  document.getElementById("f-search").addEventListener("input", render);
+  document.getElementById("reset-btn").addEventListener("click", () => {
+    ["f-category","f-action","f-urgency","f-lifecycle"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("f-search").value = ""; render();
+  });
+}
+
+function getFiltered() {
+  const cat = document.getElementById("f-category").value;
+  const act = document.getElementById("f-action").value;
+  const urg = document.getElementById("f-urgency").value;
+  const life = document.getElementById("f-lifecycle").value;
+  const q = document.getElementById("f-search").value.toLowerCase();
+  return ALL_SKUS.filter(s =>
+    (!cat || s.category === cat) && (!act || s.action === act) &&
+    (!urg || s.urgency === urg) && (!life || s.lifecycle === life) &&
+    (!q || s.sku_id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+  ).sort((a,b) => sortDir * ((b[sortCol]||0) - (a[sortCol]||0)));
+}
+
+function render() {
+  const filtered = getFiltered();
+  document.getElementById("main-content").innerHTML = buildHTML(filtered);
+  buildCharts(filtered); wireSort();
+}
+
+function buildHTML(skus) {
+  const totalRev = skus.reduce((s,x) => s + x.revenue, 0);
+  const totalUnits = skus.reduce((s,x) => s + x.units_sold, 0);
+  const totalStock = skus.reduce((s,x) => s + x.current_stock, 0);
+  const critCount = skus.filter(s => s.urgency === "CRITICAL").length;
+  const placeCount = skus.filter(s => s.action === "PLACE ORDER").length;
+  const avgMargin = skus.length ? skus.reduce((s,x) => s + x.margin_pct, 0) / skus.length : 0;
+  const avgL12w = skus.length ? skus.reduce((s,x) => s + x.l12w_avg, 0) / skus.length : 0;
+  const isFiltered = skus.length < ALL_SKUS.length;
+  return `
+  <div class="summary-row">
+    <div class="summary-chip"><b>${skus.length}</b> SKUs${isFiltered ? ` of ${ALL_SKUS.length}` : ""}</div>
+    <div class="summary-chip">Revenue <b>$${num(totalRev)}</b></div>
+    <div class="summary-chip">Units Sold <b>${num(totalUnits)}</b></div>
+    <div class="summary-chip">Stock <b>${num(totalStock)}</b></div>
+    <div class="summary-chip">Avg Margin <b>${pct(avgMargin)}</b></div>
+    <div class="summary-chip">Avg Velocity <b>${avgL12w.toFixed(1)} u/wk</b></div>
+  </div>
+  <div>
+    <div class="section-title">Portfolio KPIs</div>
+    <div class="kpi-grid">
+      ${kpiCard("WOS","57.4 wks","red")}
+      ${kpiCard("Fill Rate",pct(KPIS.service_level?.fill_rate_pct||0),"green")}
+      ${kpiCard("OOS %",pct(KPIS.inventory?.oos_pct||0),"red")}
+      ${kpiCard("Gross Margin",pct(KPIS.financial?.gross_margin_pct||0),"green")}
+      ${kpiCard("Critical SKUs (filtered)",critCount+"",critCount>5?"red":"yellow")}
+      ${kpiCard("Place Order (filtered)",placeCount+" SKUs",placeCount>10?"red":"yellow")}
+      ${kpiCard("Inventory","\$"+shortNum(KPIS.financial?.working_capital||0),"red")}
+      ${kpiCard("Carrying Cost","\$"+shortNum(KPIS.financial?.carrying_cost||0),"red")}
+      ${kpiCard("Promo Uplift",pct(KPIS.promotional?.avg_actual_uplift_pct||0),"blue")}
+      ${kpiCard("Fcst Accuracy",pct(KPIS.forecast_accuracy?.forecast_accuracy_pct||0.667),"yellow")}
+      ${kpiCard("Fcst Bias","+221% over","red")}
+      ${kpiCard("Lead Time",(KPIS.supply_chain?.avg_lead_time_days||150).toFixed(0)+" days","red")}
+    </div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card"><h3>Revenue by Category</h3><div class="chart-wrap"><canvas id="chart-cat"></canvas></div></div>
+    <div class="chart-card"><h3>Action Distribution</h3><div class="chart-wrap"><canvas id="chart-action"></canvas></div></div>
+    <div class="chart-card"><h3>Velocity vs Stock Gap</h3><div class="chart-wrap"><canvas id="chart-scatter"></canvas></div></div>
+  </div>
+  <div class="table-card">
+    <div class="table-header"><h3>SKU Detail</h3><span class="sku-count">${skus.length} SKUs</span></div>
+    <div class="table-wrap">
+      <table id="sku-table">
+        <thead><tr>
+          <th data-col="priority_score">Priority</th><th data-col="sku_id">SKU ID</th>
+          <th>Product</th><th data-col="category">Category</th>
+          <th data-col="lifecycle">Status</th><th data-col="urgency">Urgency</th>
+          <th data-col="action">Action</th><th data-col="current_stock">Stock</th>
+          <th data-col="gap_units">Gap</th><th data-col="rec_order_qty">Rec Order</th>
+          <th data-col="l12w_avg">L12W</th><th data-col="revenue">Revenue</th>
+          <th data-col="margin_pct">Margin</th><th>Stockout</th>
+        </tr></thead>
+        <tbody>${skus.map(s => `<tr>
+          <td><b>${s.priority_score.toFixed(0)}</b></td>
+          <td style="font-family:monospace;font-size:11px">${s.sku_id}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${s.name}">${s.name}</td>
+          <td>${s.category}</td>
+          <td><span class="badge ${s.lifecycle}">${s.lifecycle}</span></td>
+          <td><span class="badge ${s.urgency}">${s.urgency||"—"}</span></td>
+          <td><span class="badge action-${(s.action||"").split(" ")[0]}">${s.action||"—"}</span></td>
+          <td>${num(s.current_stock)}</td>
+          <td class="${s.gap_units<0?'gap-neg':'gap-pos'}">${s.gap_units>0?"+":""}${num(s.gap_units)}</td>
+          <td>${s.rec_order_qty>0?num(s.rec_order_qty):"—"}</td>
+          <td>${s.l12w_avg.toFixed(1)}</td>
+          <td>$${num(s.revenue)}</td>
+          <td>${pct(s.margin_pct)}</td>
+          <td style="font-size:11px;color:var(--muted)">${s.est_stockout||"—"}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function buildCharts(skus) {
+  const catMap = {};
+  skus.forEach(s => { catMap[s.category] = (catMap[s.category]||0) + s.revenue; });
+  const catLabels = Object.keys(catMap).sort((a,b) => catMap[b]-catMap[a]);
+  const actMap = {};
+  skus.forEach(s => { const a = s.action||"Other"; actMap[a] = (actMap[a]||0)+1; });
+  const scatter = skus.filter(s => s.l12w_avg > 0).map(s => ({
+    x: s.l12w_avg, y: s.gap_units,
+    r: Math.max(4, Math.min(20, s.priority_score/15)), label: s.name
+  }));
+  Object.values(charts).forEach(c => c && c.destroy()); charts = {};
+  const C = ["#6366f1","#3b82f6","#06b6d4","#22c55e","#f59e0b","#f97316","#ef4444","#a855f7","#ec4899","#14b8a6"];
+  charts.cat = new Chart(document.getElementById("chart-cat"), {
+    type:"bar", data:{labels:catLabels,datasets:[{data:catLabels.map(k=>Math.round(catMap[k])),backgroundColor:C,borderRadius:4}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8892a4",font:{size:10}},grid:{color:"#2e3347"}},y:{ticks:{color:"#8892a4",font:{size:10},callback:v=>"$"+shortNum(v)},grid:{color:"#2e3347"}}},maintainAspectRatio:false}
+  });
+  charts.action = new Chart(document.getElementById("chart-action"), {
+    type:"doughnut", data:{labels:Object.keys(actMap),datasets:[{data:Object.values(actMap),backgroundColor:["#ef4444","#f97316","#3b82f6","#22c55e","#a855f7","#8892a4"],borderWidth:0}]},
+    options:{plugins:{legend:{labels:{color:"#8892a4",font:{size:10},boxWidth:12}}},maintainAspectRatio:false}
+  });
+  charts.scatter = new Chart(document.getElementById("chart-scatter"), {
+    type:"bubble", data:{datasets:[{data:scatter,backgroundColor:scatter.map(d=>d.y<0?"#ef444460":"#22c55e60"),borderColor:scatter.map(d=>d.y<0?"#ef4444":"#22c55e"),borderWidth:1}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw.label}}},scales:{x:{title:{display:true,text:"L12W Velocity",color:"#8892a4"},ticks:{color:"#8892a4"},grid:{color:"#2e3347"}},y:{title:{display:true,text:"Gap Units",color:"#8892a4"},ticks:{color:"#8892a4"},grid:{color:"#2e3347"}}},maintainAspectRatio:false}
+  });
+}
+
+function wireSort() {
+  document.querySelectorAll("thead th[data-col]").forEach(th => {
+    if (th.dataset.col === sortCol) th.classList.add(sortDir > 0 ? "sorted-asc" : "sorted-desc");
+    th.addEventListener("click", () => {
+      sortDir = sortCol === th.dataset.col ? sortDir * -1 : -1;
+      sortCol = th.dataset.col; render();
+    });
+  });
+}
+
+function kpiCard(label, value, color="blue") {
+  return `<div class="kpi-card ${color}"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div></div>`;
+}
+function pct(v) { return (v*100).toFixed(1)+"%"; }
+function num(v) { return Math.round(v).toLocaleString(); }
+function shortNum(v) { return v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v); }
+
+init();
+</script>
+</body>
+</html>
